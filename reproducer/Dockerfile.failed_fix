@@ -1,0 +1,39 @@
+# Reproducer image — Gogs v0.13.1 (failed fix; CVE-2024-55947's first patch).
+# v0.13.1 added path validation but ignored SYMLINKS, so the symlink bypass
+# (CVE-2025-8110) still writes outside the repo. The two-trace negative control
+# still fires here -> incomplete_patch, not a PoNE.
+#
+# EFFECT-ONLY (RFC 0003 invariant 8): stock historic Gogs server; the out-of-repo
+# arbitrary-file-write EFFECT is exercised by reproducer/driver/, never by a payload
+# baked here. Historic source is NOT vendored — cloned + checked out at the pin.
+#
+# Toolchain note: Gogs 0.13.x ~ Go 1.20-era. Pin may need a per-checkpoint tweak
+# (authored, NOT live-built this pass — see repo NOTES.md).
+FROM golang:1.20-bullseye AS build
+
+ARG GOGS_COMMIT=0c40e600a275d490481cfeea53705810fbe94d9b
+ENV CGO_ENABLED=1 \
+    GOFLAGS=-mod=vendor \
+    TAGS="sqlite sqlite_unlock_notify"
+
+RUN apt-get update && apt-get install -y --no-install-recommends git build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN git clone https://github.com/gogs/gogs . \
+    && git checkout "${GOGS_COMMIT}"
+
+RUN go build -tags "${TAGS}" -o /out/gogs .
+
+FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -d /home/git -s /bin/bash git
+
+RUN mkdir -p /srv/sentinel && chown git:git /srv/sentinel
+
+COPY --from=build /out/gogs /usr/local/bin/gogs
+USER git
+WORKDIR /home/git
+EXPOSE 3000
+ENTRYPOINT ["gogs", "web"]

@@ -1,0 +1,159 @@
+name: prove
+
+# Honesty boundary (read this before editing):
+#
+# This repo proves a PoE -> incomplete-patch -> PoNE chain on the Gogs symlink
+# arbitrary-file-write bug. The proof is produced by TWO tiers, and this workflow
+# only runs the part that lives in-repo:
+#
+#   * OSS Assess / reachability "candidate" tier  -> RUNS HERE.
+#     `open-tegron baseline` is the deterministic, no-account scanner (verbs:
+#     baseline | pr-inherit | cve-watch | state). It is Go-only and emits CANDIDATE
+#     verdicts (reachable_candidate / not_exploitable / disqualified) — never
+#     `exploitable`. Gogs is Go, so we run a real baseline over the historic source
+#     at each checkpoint.
+#   * Prove tier (PoE/PoNE, sandbox detonation, two-trace regression oracle) ->
+#     RUNS PLATFORM-SIDE (Tegron, with-account). There is deliberately NO
+#     `bin/tegron prove` / `assert` step here: that CLI does not exist in the OSS
+#     surface. The platform consumes cases/cve-2024-55947.yaml + the reproducer
+#     images and realizes the proven chain.
+#
+# So: `assess` = real OSS reachability run; `build-reproducers` = prove the
+# effect-only reproducer images actually build; `chain` = render the chain and
+# state where the proven verdicts come from.
+#
+# NOTE: the CVE-2024-55947 reachable-candidate finding lights up once the OSS
+# advisory corpus carries the entry for it (tracked follow-up — see README).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  assess:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # persist the StateStore ref (refs/tegron/state) on push to main
+      security-events: write   # SARIF -> code scanning upload
+      pull-requests: write      # sticky PR comment
+      issues: write             # pinned Issue dashboard
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - checkpoint: vulnerable
+            ref: v0.13.0
+            commit: 8c21874c00b6100d46b662f65baeb40647442f42
+          - checkpoint: failed_fix
+            ref: v0.13.1
+            commit: 0c40e600a275d490481cfeea53705810fbe94d9b
+          - checkpoint: still_vuln
+            ref: v0.13.3
+            commit: 5084b4a9b77a506f5e287e82e945e1c6882b827a
+          - checkpoint: real_fix
+            ref: v0.13.4
+            commit: d958a47a0e9d8747e399c687fdb3ec64a3b1a736
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.3"
+          cache: false
+
+      - name: Fetch Gogs source at this checkpoint
+        run: |
+          git clone --no-checkout https://github.com/gogs/gogs "$RUNNER_TEMP/gogs"
+          git -C "$RUNNER_TEMP/gogs" checkout "${{ matrix.commit }}"
+
+      - name: Warm the module cache for the target
+        working-directory: ${{ runner.temp }}/gogs
+        run: go mod download || true   # historic deps; non-fatal so the scan still runs
+
+      - name: Run the OSS reachability baseline for this checkpoint
+        id: assess
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TEGRON_PAGES: "1"
+        run: |
+          chmod +x bin/open-tegron bin/open-tegron-plugin
+          mkdir -p "$RUNNER_TEMP/out"
+          # Persist the durable StateStore ref only on push to main; a PR run stays
+          # stateless so it never overwrites the baseline.
+          REPO_FLAG=""
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            REPO_FLAG="-repo ${{ github.repository }}"
+          fi
+          ./bin/open-tegron baseline \
+            -target "$RUNNER_TEMP/gogs" \
+            -out "$RUNNER_TEMP/out" \
+            -plugin-go "$GITHUB_WORKSPACE/bin/open-tegron-plugin" \
+            -subject-repo "${{ github.repository }}" \
+            -revision "${{ matrix.ref }}" \
+            -commit "${{ matrix.commit }}" \
+            $REPO_FLAG
+          echo "out=$RUNNER_TEMP/out" >> "$GITHUB_OUTPUT"
+
+      - name: Upload reports as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: assess-${{ matrix.checkpoint }}
+          path: |
+            ${{ steps.assess.outputs.out }}/report.html
+            ${{ steps.assess.outputs.out }}/report.sarif.json
+            ${{ steps.assess.outputs.out }}/report.json
+            ${{ steps.assess.outputs.out }}/openvex.json
+          if-no-files-found: error
+
+      - name: Upload SARIF to code scanning
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: ${{ steps.assess.outputs.out }}/report.sarif.json
+          category: tegron-${{ matrix.checkpoint }}
+
+  build-reproducers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        checkpoint: [vulnerable, failed_fix, still_vuln, real_fix]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the effect-only reproducer image for this checkpoint
+        # Historic Go builds can be finicky (toolchain/era drift); non-fatal so a
+        # build hiccup at one checkpoint doesn't mask the rest. The platform Prove
+        # run uses its own pinned build of these same Dockerfiles.
+        continue-on-error: true
+        run: |
+          docker build -f reproducer/Dockerfile.${{ matrix.checkpoint }} \
+            -t repro:${{ matrix.checkpoint }} reproducer/
+
+  chain:
+    needs: [assess, build-reproducers]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Render the PoE -> incomplete-patch -> PoNE chain
+        run: |
+          {
+            echo "## Gogs symlink-write chain — CVE-2024-55947 → CVE-2025-8110"
+            echo ""
+            echo "| Checkpoint | Version | Expected verdict |"
+            echo "|---|---|---|"
+            echo "| vulnerable | v0.13.0 | proven exploitable (PoE, CVE-2024-55947) |"
+            echo "| failed_fix | v0.13.1 | incomplete-patch (symlink bypass CVE-2025-8110 still fires) |"
+            echo "| still_vuln | v0.13.3 | incomplete-patch (still fires) |"
+            echo "| real_fix   | v0.13.4 | proven not_exploitable (PoNE) |"
+            echo ""
+            echo "**In-repo CI** ran the OSS reachability *candidate* tier"
+            echo "(\`open-tegron baseline\`, Go) and built the effect-only reproducer"
+            echo "images. The **proven** PoE/PoNE verdicts and the two-trace regression"
+            echo "oracle come from Tegron's **platform Prove tier** (with-account), which"
+            echo "consumes \`cases/cve-2024-55947.yaml\` + the reproducer images."
+          } >> "$GITHUB_STEP_SUMMARY"

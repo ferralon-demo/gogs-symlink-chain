@@ -1,0 +1,44 @@
+# Reproducer image — Gogs v0.13.0 (vulnerable; CVE-2024-55947).
+# EFFECT-ONLY (RFC 0003 invariant 8): this image builds a stock historic Gogs
+# server. The out-of-repo arbitrary-file-write EFFECT is exercised by the
+# effect-only driver in reproducer/driver/, never by a weaponized payload baked here.
+#
+# Historic source is NOT vendored: we clone gogs/gogs and check out the exact pinned
+# commit, so provenance is the real upstream ref.
+#
+# Toolchain note: Gogs 0.13.x was built against a Go 1.20-era toolchain. golang:1.20
+# is a reasonable pin; the exact minor may need a per-checkpoint tweak (this was
+# authored but NOT live-built this pass — see repo NOTES.md).
+FROM golang:1.20-bullseye AS build
+
+ARG GOGS_COMMIT=8c21874c00b6100d46b662f65baeb40647442f42
+ENV CGO_ENABLED=1 \
+    GOFLAGS=-mod=vendor \
+    TAGS="sqlite sqlite_unlock_notify"
+
+RUN apt-get update && apt-get install -y --no-install-recommends git build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+RUN git clone https://github.com/gogs/gogs . \
+    && git checkout "${GOGS_COMMIT}"
+
+# Build the gogs binary (the historic Makefile target). If the pinned era needs a
+# different build incantation, adjust here per checkpoint.
+RUN go build -tags "${TAGS}" -o /out/gogs .
+
+FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -d /home/git -s /bin/bash git
+
+# Out-of-repo sentinel target the driver writes THROUGH the symlink to. The
+# observable side-effect is benign canary bytes appearing here, outside any repo
+# working tree.
+RUN mkdir -p /srv/sentinel && chown git:git /srv/sentinel
+
+COPY --from=build /out/gogs /usr/local/bin/gogs
+USER git
+WORKDIR /home/git
+EXPOSE 3000
+ENTRYPOINT ["gogs", "web"]
