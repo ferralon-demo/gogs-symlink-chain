@@ -44,11 +44,48 @@ and builds the reproducer images; it deliberately has **no `bin/tegron prove`
 step** (that CLI does not exist in the OSS surface). The repo carries the Case
 manifest + effect-only reproducers as the platform Prove tier's input.
 
-> **Corpus note.** The `open-tegron` candidate finding for CVE-2024-55947 lights
-> up once the OSS advisory corpus carries the entry for it (module
-> `gogs.io/gogs`, the path-validation/file-write sink). That corpus addition is
-> a tracked follow-up; until then the baseline runs and reports the current
-> corpus against the Gogs SBOM.
+### Candidate-tier results (run locally, all four checkpoints)
+
+The OSS advisory corpus now carries CVE-2024-55947 (module `gogs.io/gogs`), and
+the analyzer resolves the first-party file-write sink via macaron route-handler
+ingress detection. The headline CVE therefore emits a real candidate finding at
+**every** checkpoint. The committed `bin/open-tegron` was run over the historic
+Gogs source at each commit; the per-checkpoint outputs (`report.json`,
+`report.html`, `report.sarif.json`, `openvex.json`) live under `artifacts/`.
+
+For CVE-2024-55947 (alias CVE-2025-8110; KEV-listed, EPSS ~0.75) all four
+checkpoints report the **same** verdict — `reachable_candidate`, reachability
+grade `attacker_tainted` — over an attacker-controllable `http_route` ingress
+(`EditFilePost`) into the `UpdateRepoFile` sink in `gogs.io/gogs/internal/db`.
+What escalates across versions is the set of **mitigating guards present on the
+path**:
+
+| Role | Version | Verdict | Reachability | Mitigating guards on path |
+|---|---|---|---|---|
+| Vulnerable | 0.13.0 | `reachable_candidate` | `attacker_tainted` | `isRepositoryGitPath` |
+| **Failed fix** | 0.13.1 | `reachable_candidate` | `attacker_tainted` | `isRepositoryGitPath` |
+| Still vulnerable | 0.13.3 | `reachable_candidate` | `attacker_tainted` | `isRepositoryGitPath`, `IsSymlink` |
+| Real fix | 0.13.4 | `reachable_candidate` | `attacker_tainted` | `isRepositoryGitPath`, `hasSymlinkInPath` |
+
+Two honest readings fall out of this table:
+
+- **The "fix" never touched the symlink path.** v0.13.1 (failed fix) carries the
+  *identical* guard set to v0.13.0 — the CVE-2024-55947 patch added `.git`-path
+  validation but did nothing to the symlink hole on this sink.
+- **Guard presence ≠ guard sufficiency.** v0.13.3 and v0.13.4 both show a
+  symlink guard present, yet only v0.13.4 actually closes the hole: v0.13.3's
+  `IsSymlink` is a leaf-only check, bypassable via an intermediate-directory
+  symlink, while v0.13.4's `hasSymlinkInPath` walks the whole path hierarchy.
+
+The candidate tier is **static**, so it deliberately keeps all four at
+`reachable_candidate`. It cannot — and does not — claim the bug is fixed at
+v0.13.4: `UpdateRepoFile` still exists and is still reachable from the
+editor/contents-API ingress in every version, and whether a runtime
+path-validation guard actually closes the hole is not an SBOM/CVSS/static-
+reachability question. Adjudicating the **PoE → incomplete-patch → PoNE flip**
+is the platform **Prove tier's** job (two-trace detonation). That boundary is
+the whole point of the demo: static analysis can surface the guard escalation,
+but only runtime proof can tell a real fix from a bypassable one.
 
 ## Effect-only reproducers (RFC 0003 / RFC 0001 invariant 8)
 

@@ -15,10 +15,11 @@ binaries were completed inline by the orchestrator.
    run platform-side (with-account). `prove.yml` has no prove/assert step; it
    runs the OSS candidate tier + builds reproducers + documents the platform
    handoff.
-3. **Corpus pending.** The OSS advisory corpus does not yet carry CVE-2024-55947,
-   so the candidate finding is not emitted *today*; the baseline still runs.
-   Corpus facts are documented in the team brain (`gogs.io/gogs`, sink
-   `UpdateRepoFile`). Proceeding per "assume the corpus feature lands shortly."
+3. **Corpus — RESOLVED.** The OSS advisory corpus now carries CVE-2024-55947
+   (module `gogs.io/gogs`, sink `UpdateRepoFile`), and the analyzer resolves
+   the first-party sink via macaron route-handler ingress detection. The
+   candidate finding now emits at all four checkpoints (`reachable_candidate`,
+   `attacker_tainted`); see `artifacts/` and the result table in the README.
 4. **Module identity `gogs.io/gogs`** (not `github.com/gogs/gogs`) — that is the
    module in v0.13.0's go.mod and what the analyzer matches. The git clone URL is
    still `github.com/gogs/gogs` (the repo host).
@@ -40,10 +41,17 @@ binaries were completed inline by the orchestrator.
 
 ## What needs a live pass
 
+- ~~In-repo OSS candidate scan.~~ **Done locally.** The committed
+  `bin/open-tegron` was run over the historic Gogs source at all four
+  checkpoints; CVE-2024-55947 emits `reachable_candidate` / `attacker_tainted`
+  at each, with the escalating guard sets captured per checkpoint. Artifacts
+  (`report.json/html/sarif/openvex`) are committed under `artifacts/`. The
+  analyzer gained **macaron route-handler ingress detection** + **advisory-
+  declared "guard-on-path" mitigation evidence** to produce this.
 - Build all four reproducer Dockerfiles (fix any toolchain/era drift).
 - Run `poe_driver.py` against each running image; confirm the canary lands at
   `/srv/sentinel/poe.txt` on 0.13.0/0.13.1/0.13.3 and is **dark** on 0.13.4.
 - Feed `cases/cve-2024-55947.yaml` + the reproducer images into the platform
-  Prove tier; confirm realized verdicts equal the `expect` blocks.
-- Once the OSS corpus carries CVE-2024-55947, rebuild `bin/` and confirm the
-  reachable-candidate finding appears in the in-repo baseline.
+  Prove tier; confirm the realized verdicts (the PoE → incomplete-patch → PoNE
+  flip) equal the `expect` blocks — the static candidate tier holds all four at
+  `reachable_candidate`, so the flip is the Prove tier's to settle.

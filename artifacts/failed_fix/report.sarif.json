@@ -1,0 +1,158 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "open-tegron",
+          "version": "open-tegron/dev",
+          "informationUri": "https://github.com/ferralon-ai/tegron",
+          "semanticVersion": "open-tegron/dev"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CVE-2024-55947",
+          "level": "warning",
+          "kind": "open",
+          "message": {
+            "text": "CVE-2024-55947: open-tegron found a reachable candidate path (entrypoint → advisory symbol). This is a candidate for exploitability, not a proof; confirmation requires the paid Prove tier."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "."
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 99.45,
+          "properties": {
+            "scanner": {
+              "attacker_controllable": true,
+              "entry_point": "scip-go gomod gogs.io/gogs . gogs.io/gogs/internal/route/repo/NewFilePost().",
+              "epss_percentile": 0.9945,
+              "epss_score": 0.75197,
+              "intel_snapshot": "2026-06-17",
+              "kev_date_added": "2026-01-12",
+              "kev_listed": true,
+              "reachability_grade": "attacker_tainted",
+              "reachable_path": "entrypoint → advisory symbol",
+              "source": "ghsa",
+              "tags": [
+                "CISA-KEV"
+              ],
+              "verdict": "reachable_candidate"
+            }
+          }
+        },
+        {
+          "ruleId": "GO-2022-0322",
+          "level": "none",
+          "kind": "notApplicable",
+          "message": {
+            "text": "GO-2022-0322: disqualified. resolved dependency version is outside the advisory's affected range"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "go.mod"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 92.378,
+          "properties": {
+            "scanner": {
+              "basis": "version_not_in_affected_range",
+              "detail": "resolved dependency version is outside the advisory's affected range",
+              "epss_percentile": 0.92378,
+              "epss_score": 0.05994,
+              "intel_snapshot": "2026-06-17",
+              "kev_listed": false,
+              "package": "Go:github.com/prometheus/client_golang@v1.14.0",
+              "source": "osv",
+              "verdict": "disqualified"
+            }
+          }
+        },
+        {
+          "ruleId": "GO-2021-0264",
+          "level": "note",
+          "kind": "informational",
+          "message": {
+            "text": "GO-2021-0264: not exploitable. no reachable path to the advisory symbol was found"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "."
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 85.845,
+          "properties": {
+            "scanner": {
+              "basis": "vulnerable_symbol_absent",
+              "detail": "no reachable path to the advisory symbol was found",
+              "epss_percentile": 0.85845,
+              "epss_score": 0.03051,
+              "intel_snapshot": "2026-06-17",
+              "kev_listed": false,
+              "source": "osv",
+              "verdict": "not_exploitable"
+            }
+          }
+        },
+        {
+          "ruleId": "GO-2021-0113",
+          "level": "none",
+          "kind": "notApplicable",
+          "message": {
+            "text": "GO-2021-0113: disqualified. resolved dependency version is outside the advisory's affected range"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "go.mod"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "rank": 68,
+          "properties": {
+            "scanner": {
+              "basis": "version_not_in_affected_range",
+              "detail": "resolved dependency version is outside the advisory's affected range",
+              "epss_percentile": 0.68,
+              "epss_score": 0.01356,
+              "intel_snapshot": "2026-06-17",
+              "kev_listed": false,
+              "package": "Go:golang.org/x/text@v0.21.0",
+              "source": "osv",
+              "verdict": "disqualified"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
