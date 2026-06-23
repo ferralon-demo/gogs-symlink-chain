@@ -1,0 +1,72 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://openvex.dev/docs/open-tegron/d958a47a0e9d8747e399c687fdb3ec64a3b1a736",
+  "author": "open-tegron",
+  "timestamp": "2026-06-23T19:40:15Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "@id": "CVE-2024-55947",
+        "aliases": [
+          "CVE-2025-8110",
+          "GHSA-vm622-x2cf-3blh"
+        ]
+      },
+      "products": [
+        {
+          "@id": "ferralon-demo/gogs-symlink-chain@d958a47a0e9d8747e399c687fdb3ec64a3b1a736"
+        }
+      ],
+      "status": "under_investigation",
+      "impact_statement": "open-tegron found a reachable code path to the advisory symbol. This is a candidate for exploitability, not a proof; confirmation requires the paid Prove tier. Candidate path: entrypoint → advisory symbol."
+    },
+    {
+      "vulnerability": {
+        "@id": "GO-2022-0322",
+        "aliases": [
+          "CVE-2022-21698",
+          "GHSA-cg3q-j54f-5p7p"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:golang/github.com/prometheus/client_golang"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present"
+    },
+    {
+      "vulnerability": {
+        "@id": "GO-2021-0264",
+        "aliases": [
+          "CVE-2021-41772"
+        ]
+      },
+      "products": [
+        {
+          "@id": "ferralon-demo/gogs-symlink-chain@d958a47a0e9d8747e399c687fdb3ec64a3b1a736"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present"
+    },
+    {
+      "vulnerability": {
+        "@id": "GO-2021-0113",
+        "aliases": [
+          "CVE-2021-38561",
+          "GHSA-ppp9-7jff-5vj2"
+        ]
+      },
+      "products": [
+        {
+          "@id": "pkg:golang/golang.org/x/text"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present"
+    }
+  ]
+}
