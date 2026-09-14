@@ -128,8 +128,11 @@ def make_token(base, user, password):
 
 
 def create_repo(base, token, repo):
+    # auto_init needs an explicit readme template name; an empty one makes Gogs
+    # 0.13.x resolve the options/readme *directory* and fail ("read readme: is a
+    # directory"). "Default" seeds a master branch the contents-API write targets.
     _req("POST", base + "/api/v1/user/repos", token=token,
-         body={"name": repo, "auto_init": True, "private": False})
+         body={"name": repo, "auto_init": True, "readme": "Default", "private": False})
 
 
 def commit_symlink(base, user, password, repo, target):
@@ -172,7 +175,7 @@ def write_through(base, token, user, repo, token_bytes):
 def main():
     ap = argparse.ArgumentParser(description="Effect-only Gogs symlink-write PoE driver")
     ap.add_argument("--base", default="http://localhost:3000", help="Gogs base URL")
-    ap.add_argument("--user", default="admin")
+    ap.add_argument("--user", default="poeadmin")  # `admin` is a reserved name in Gogs 0.13.x
     ap.add_argument("--password", default="admin12345")
     ap.add_argument("--email", default="admin@example.invalid")
     ap.add_argument("--repo", default="poe")
