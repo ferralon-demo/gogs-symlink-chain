@@ -6,14 +6,13 @@
 # Historic source is NOT vendored: we clone gogs/gogs and check out the exact pinned
 # commit, so provenance is the real upstream ref.
 #
-# Toolchain note: Gogs 0.13.x was built against a Go 1.20-era toolchain. golang:1.20
-# is a reasonable pin; the exact minor may need a per-checkpoint tweak (this was
-# authored but NOT live-built this pass — see repo NOTES.md).
-FROM golang:1.20-bullseye AS build
+# Toolchain note: golang:1.20 (go.mod declares go 1.18); modules mode (0.13.x
+# ships no vendor/ dir); bookworm bases (bullseye aged out of the Debian mirrors).
+# LIVE-BUILT 2026-09-14 (K8). See repo NOTES.md.
+FROM golang:1.20-bookworm AS build
 
 ARG GOGS_COMMIT=8c21874c00b6100d46b662f65baeb40647442f42
 ENV CGO_ENABLED=1 \
-    GOFLAGS=-mod=vendor \
     TAGS="sqlite sqlite_unlock_notify"
 
 RUN apt-get update && apt-get install -y --no-install-recommends git build-essential \
@@ -27,7 +26,7 @@ RUN git clone https://github.com/gogs/gogs . \
 # different build incantation, adjust here per checkpoint.
 RUN go build -tags "${TAGS}" -o /out/gogs .
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -d /home/git -s /bin/bash git
@@ -38,6 +37,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends git openssh-cli
 RUN mkdir -p /srv/sentinel && chown git:git /srv/sentinel
 
 COPY --from=build /out/gogs /usr/local/bin/gogs
+# Gogs derives its work dir from the binary location by default (/usr/local/bin),
+# which the unprivileged git user cannot write. Pin it to the git home.
+ENV GOGS_WORK_DIR=/home/git
 USER git
 WORKDIR /home/git
 EXPOSE 3000
